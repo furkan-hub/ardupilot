@@ -1,4 +1,4 @@
-(FORKED FROM ARDUPİLOT FOR MY DEV VERSION)
+(FORKED FROM ARDUPILOT FOR MY DEV VERSION)
 # ArduPilot Project
 
 <a href="https://ardupilot.org/discord"><img src="https://img.shields.io/discord/674039678562861068.svg" alt="Discord">
