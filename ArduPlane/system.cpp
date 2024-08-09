@@ -45,7 +45,9 @@ void Plane::init_ardupilot()
     // initialise battery monitoring
     battery.init();
 
+#if AP_RSSI_ENABLED
     rssi.init();
+#endif
 
 #if AP_RPM_ENABLED
     rpm_sensor.init();
@@ -55,7 +57,7 @@ void Plane::init_ardupilot()
     gcs().setup_uarts();
 
 
-#if OSD_ENABLED == ENABLED
+#if OSD_ENABLED
     osd.init();
 #endif
 

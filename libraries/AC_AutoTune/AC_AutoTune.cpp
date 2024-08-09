@@ -124,21 +124,24 @@ bool AC_AutoTune::init_position_controller(void)
 void AC_AutoTune::send_step_string()
 {
     if (pilot_override) {
-        gcs().send_text(MAV_SEVERITY_INFO, "AutoTune: Paused: Pilot Override Active");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "AutoTune: Paused: Pilot Override Active");
         return;
     }
     switch (step) {
     case WAITING_FOR_LEVEL:
-        gcs().send_text(MAV_SEVERITY_INFO, "AutoTune: Leveling");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "AutoTune: Leveling");
         return;
     case UPDATE_GAINS:
-        gcs().send_text(MAV_SEVERITY_INFO, "AutoTune: Updating Gains");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "AutoTune: Updating Gains");
+        return;
+    case ABORT:
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "AutoTune: Aborting Test");
         return;
     case TESTING:
-        gcs().send_text(MAV_SEVERITY_INFO, "AutoTune: Testing");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "AutoTune: Testing");
         return;
     }
-    gcs().send_text(MAV_SEVERITY_INFO, "AutoTune: unknown step");
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "AutoTune: unknown step");
 }
 
 const char *AC_AutoTune::type_string() const
@@ -172,13 +175,13 @@ const char *AC_AutoTune::type_string() const
 const char *AC_AutoTune::axis_string() const
 {
     switch (axis) {
-    case ROLL:
+    case AxisType::ROLL:
         return "Roll";
-    case PITCH:
+    case AxisType::PITCH:
         return "Pitch";
-    case YAW:
+    case AxisType::YAW:
         return "Yaw(E)";
-    case YAW_D:
+    case AxisType::YAW_D:
         return "Yaw(D)";
     }
     return "";
@@ -239,7 +242,7 @@ void AC_AutoTune::run()
     }
     if (pilot_override) {
         if (now - last_pilot_override_warning > 1000) {
-            gcs().send_text(MAV_SEVERITY_INFO, "AutoTune: pilot overrides active");
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "AutoTune: pilot overrides active");
             last_pilot_override_warning = now;
         }
     }
@@ -273,7 +276,7 @@ bool AC_AutoTune::currently_level()
     // abort AutoTune if we pass 2 * AUTOTUNE_LEVEL_TIMEOUT_MS
     const uint32_t now_ms = AP_HAL::millis();
     if (now_ms - level_start_time_ms > 3 * AUTOTUNE_LEVEL_TIMEOUT_MS) {
-        gcs().send_text(MAV_SEVERITY_CRITICAL, "AutoTune: Failed to level, please tune manually");
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "AutoTune: Failed to level, please tune manually");
         mode = FAILED;
         LOGGER_WRITE_EVENT(LogEvent::AUTOTUNE_FAILED);
     }
@@ -340,13 +343,6 @@ void AC_AutoTune::control_attitude()
             step_start_time_ms = now;
             step_time_limit_ms = get_testing_step_timeout_ms();
             // set gains to their to-be-tested values
-            twitch_first_iter = true;
-            test_rate_max = 0.0f;
-            test_rate_min = 0.0f;
-            test_angle_max = 0.0f;
-            test_angle_min = 0.0f;
-            rotation_rate_filt.reset(0.0f);
-            rate_max = 0.0f;
             load_gains(GAIN_TEST);
         } else {
             // when waiting for level we use the intra-test gains
@@ -355,19 +351,16 @@ void AC_AutoTune::control_attitude()
 
         // Initialize test-specific variables
         switch (axis) {
-        case ROLL:
-            angle_finish = target_angle_max_rp_cd();
+        case AxisType::ROLL:
             start_rate = ToDeg(ahrs_view->get_gyro().x) * 100.0f;
             start_angle = ahrs_view->roll_sensor;
             break;
-        case PITCH:
-            angle_finish = target_angle_max_rp_cd();
+        case AxisType::PITCH:
             start_rate = ToDeg(ahrs_view->get_gyro().y) * 100.0f;
             start_angle = ahrs_view->pitch_sensor;
             break;
-        case YAW:
-        case YAW_D:
-            angle_finish = target_angle_max_y_cd();
+        case AxisType::YAW:
+        case AxisType::YAW_D:
             start_rate = ToDeg(ahrs_view->get_gyro().z) * 100.0f;
             start_angle = ahrs_view->yaw_sensor;
             break;
@@ -409,7 +402,7 @@ void AC_AutoTune::control_attitude()
         log_pids();
 #endif
 
-        if (axis == YAW || axis == YAW_D) {
+        if (axis == AxisType::YAW || axis == AxisType::YAW_D) {
             desired_yaw_cd = ahrs_view->yaw_sensor;
         }
         break;
@@ -488,37 +481,37 @@ void AC_AutoTune::control_attitude()
                 // advance to the next axis
                 bool complete = false;
                 switch (axis) {
-                case ROLL:
+                case AxisType::ROLL:
                     axes_completed |= AUTOTUNE_AXIS_BITMASK_ROLL;
                     if (pitch_enabled()) {
-                        axis = PITCH;
+                        axis = AxisType::PITCH;
                     } else if (yaw_enabled()) {
-                        axis = YAW;
+                        axis = AxisType::YAW;
                     } else if (yaw_d_enabled()) {
-                        axis = YAW_D;
+                        axis = AxisType::YAW_D;
                     } else {
                         complete = true;
                     }
                     break;
-                case PITCH:
+                case AxisType::PITCH:
                     axes_completed |= AUTOTUNE_AXIS_BITMASK_PITCH;
                     if (yaw_enabled()) {
-                        axis = YAW;
+                        axis = AxisType::YAW;
                     } else if (yaw_d_enabled()) {
-                        axis = YAW_D;
+                        axis = AxisType::YAW_D;
                     } else {
                         complete = true;
                     }
                     break;
-                case YAW:
+                case AxisType::YAW:
                     axes_completed |= AUTOTUNE_AXIS_BITMASK_YAW;
                     if (yaw_d_enabled()) {
-                        axis = YAW_D;
+                        axis = AxisType::YAW_D;
                     } else {
                         complete = true;
                     }
                     break;
-                case YAW_D:
+                case AxisType::YAW_D:
                     axes_completed |= AUTOTUNE_AXIS_BITMASK_YAW_D;
                     complete = true;
                     break;
@@ -537,8 +530,11 @@ void AC_AutoTune::control_attitude()
                 }
             }
         }
+        FALLTHROUGH;
 
-        if (axis == YAW || axis == YAW_D) {
+    case ABORT:
+        if (axis == AxisType::YAW || axis == AxisType::YAW_D) {
+            // todo: check to make sure we need this
             attitude_control->input_euler_angle_roll_pitch_yaw(0.0f, 0.0f, ahrs_view->yaw_sensor, false);
         }
 
@@ -563,13 +559,13 @@ void AC_AutoTune::backup_gains_and_initialise()
     
     // initialise state because this is our first time
     if (roll_enabled()) {
-        axis = ROLL;
+        axis = AxisType::ROLL;
     } else if (pitch_enabled()) {
-        axis = PITCH;
+        axis = AxisType::PITCH;
     } else if (yaw_enabled()) {
-        axis = YAW;
+        axis = AxisType::YAW;
     } else if (yaw_d_enabled()) {
-        axis = YAW_D;
+        axis = AxisType::YAW_D;
     }
     // no axes are complete
     axes_completed = 0;
@@ -594,6 +590,7 @@ void AC_AutoTune::backup_gains_and_initialise()
  */
 void AC_AutoTune::load_gains(enum GainType gain_type)
 {
+    // todo: add previous setting so gains are not loaded on each loop.
     switch (gain_type) {
     case GAIN_ORIGINAL:
         load_orig_gains();
@@ -615,22 +612,22 @@ void AC_AutoTune::update_gcs(uint8_t message_id) const
 {
     switch (message_id) {
     case AUTOTUNE_MESSAGE_STARTED:
-        gcs().send_text(MAV_SEVERITY_INFO,"AutoTune: Started");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO,"AutoTune: Started");
         break;
     case AUTOTUNE_MESSAGE_STOPPED:
-        gcs().send_text(MAV_SEVERITY_INFO,"AutoTune: Stopped");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO,"AutoTune: Stopped");
         break;
     case AUTOTUNE_MESSAGE_SUCCESS:
-        gcs().send_text(MAV_SEVERITY_NOTICE,"AutoTune: Success");
+        GCS_SEND_TEXT(MAV_SEVERITY_NOTICE,"AutoTune: Success");
         break;
     case AUTOTUNE_MESSAGE_FAILED:
-        gcs().send_text(MAV_SEVERITY_NOTICE,"AutoTune: Failed");
+        GCS_SEND_TEXT(MAV_SEVERITY_NOTICE,"AutoTune: Failed");
         break;
     case AUTOTUNE_MESSAGE_TESTING:
-        gcs().send_text(MAV_SEVERITY_NOTICE,"AutoTune: Pilot Testing");
+        GCS_SEND_TEXT(MAV_SEVERITY_NOTICE,"AutoTune: Pilot Testing");
         break;
     case AUTOTUNE_MESSAGE_SAVED_GAINS:
-        gcs().send_text(MAV_SEVERITY_NOTICE,"AutoTune: Saved gains for %s%s%s%s",
+        GCS_SEND_TEXT(MAV_SEVERITY_NOTICE,"AutoTune: Saved gains for %s%s%s%s",
                         (axes_completed&AUTOTUNE_AXIS_BITMASK_ROLL)?"Roll ":"",
                         (axes_completed&AUTOTUNE_AXIS_BITMASK_PITCH)?"Pitch ":"",
                         (axes_completed&AUTOTUNE_AXIS_BITMASK_YAW)?"Yaw(E)":"",
@@ -742,7 +739,7 @@ void AC_AutoTune::get_poshold_attitude(float &roll_cd_out, float &pitch_cd_out, 
       more than 2.5 degrees of attitude on the axis it is tuning
      */
     float target_yaw_cd = degrees(atan2f(pdiff.y, pdiff.x)) * 100;
-    if (axis == PITCH) {
+    if (axis == AxisType::PITCH) {
         // for roll and yaw tuning we point along the wind, for pitch
         // we point across the wind
         target_yaw_cd += 9000;
