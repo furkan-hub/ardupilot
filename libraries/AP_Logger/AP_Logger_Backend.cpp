@@ -257,6 +257,13 @@ bool AP_Logger_Backend::Write(const uint8_t msg_type, va_list arg_list, bool is_
             offset += sizeof(float);
             break;
         }
+        case 'g': {
+            Float16_t tmp;
+            tmp.set(va_arg(arg_list, double));;
+            memcpy(&buffer[offset], &tmp, sizeof(tmp));
+            offset += sizeof(tmp);
+            break;
+        }
         case 'n':
             charlen = 4;
             break;
@@ -396,7 +403,7 @@ void AP_Logger_Backend::validate_WritePrioritisedBlock(const void *pBuffer,
         } else {
             strncpy(name, "?NM?", ARRAY_SIZE(name));
         }
-        AP_HAL::panic("Size mismatch for %u (%s) (expected=%u got=%u)\n",
+        AP_HAL::panic("Size mismatch for %u (%s) (expected=%u got=%u)",
                       type, name, type_len, size);
     }
 }

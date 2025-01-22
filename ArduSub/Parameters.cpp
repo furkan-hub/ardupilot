@@ -59,7 +59,7 @@ const AP_Param::Info Sub::var_info[] = {
     // @User: Advanced
     // @Units: Hz
     // @Range: 0 10
-    // @Increment: .5
+    // @Increment: 0.5
     GSCALAR(throttle_filt,  "PILOT_THR_FILT",     0),
 
     // AP_SerialManager was here
@@ -161,7 +161,7 @@ const AP_Param::Info Sub::var_info[] = {
     // @DisplayName: Pilot maximum vertical ascending speed
     // @Description: The maximum vertical ascending velocity the pilot may request in cm/s
     // @Units: cm/s
-    // @Range: 50 500
+    // @Range: 20 500
     // @Increment: 10
     // @User: Standard
     GSCALAR(pilot_speed_up,     "PILOT_SPEED_UP",   PILOT_VELZ_MAX),
@@ -170,7 +170,7 @@ const AP_Param::Info Sub::var_info[] = {
     // @DisplayName: Pilot maximum vertical descending speed
     // @Description: The maximum vertical descending velocity the pilot may request in cm/s
     // @Units: cm/s
-    // @Range: 50 500
+    // @Range: 20 500
     // @Increment: 10
     // @User: Standard
     GSCALAR(pilot_speed_dn,     "PILOT_SPEED_DN",   0),
@@ -492,7 +492,7 @@ const AP_Param::Info Sub::var_info[] = {
     // @Path: ../libraries/AC_WPNav/AC_Loiter.cpp
     GOBJECT(loiter_nav, "LOIT_", AC_Loiter),
 
-#if CIRCLE_NAV_ENABLED == ENABLED
+#if CIRCLE_NAV_ENABLED
     // @Group: CIRCLE_
     // @Path: ../libraries/AC_WPNav/AC_Circle.cpp
     GOBJECT(circle_nav, "CIRCLE_",  AC_Circle),
@@ -507,42 +507,42 @@ const AP_Param::Info Sub::var_info[] = {
     GOBJECT(pos_control, "PSC", AC_PosControl),
 
     // @Group: SR0_
-    // @Path: GCS_Mavlink.cpp
+    // @Path: GCS_MAVLink_Sub.cpp
     GOBJECTN(_gcs.chan_parameters[0],  gcs0,       "SR0_",     GCS_MAVLINK_Parameters),
 
 #if MAVLINK_COMM_NUM_BUFFERS >= 2
     // @Group: SR1_
-    // @Path: GCS_Mavlink.cpp
+    // @Path: GCS_MAVLink_Sub.cpp
     GOBJECTN(_gcs.chan_parameters[1],  gcs1,       "SR1_",     GCS_MAVLINK_Parameters),
 #endif
 
 #if MAVLINK_COMM_NUM_BUFFERS >= 3
     // @Group: SR2_
-    // @Path: GCS_Mavlink.cpp
+    // @Path: GCS_MAVLink_Sub.cpp
     GOBJECTN(_gcs.chan_parameters[2],  gcs2,       "SR2_",     GCS_MAVLINK_Parameters),
 #endif
 
 #if MAVLINK_COMM_NUM_BUFFERS >= 4
     // @Group: SR3_
-    // @Path: GCS_Mavlink.cpp
+    // @Path: GCS_MAVLink_Sub.cpp
     GOBJECTN(_gcs.chan_parameters[3],  gcs3,       "SR3_",     GCS_MAVLINK_Parameters),
 #endif
 
 #if MAVLINK_COMM_NUM_BUFFERS >= 5
     // @Group: SR4_
-    // @Path: GCS_Mavlink.cpp
+    // @Path: GCS_MAVLink_Sub.cpp
     GOBJECTN(_gcs.chan_parameters[4],  gcs4,       "SR4_",     GCS_MAVLINK_Parameters),
 #endif
 
 #if MAVLINK_COMM_NUM_BUFFERS >= 6
     // @Group: SR5_
-    // @Path: GCS_Mavlink.cpp
+    // @Path: GCS_MAVLink_Sub.cpp
     GOBJECTN(_gcs.chan_parameters[5],  gcs5,       "SR5_",     GCS_MAVLINK_Parameters),
 #endif
 
 #if MAVLINK_COMM_NUM_BUFFERS >= 7
     // @Group: SR6_
-    // @Path: GCS_Mavlink.cpp
+    // @Path: GCS_MAVLink_Sub.cpp
     GOBJECTN(_gcs.chan_parameters[6],  gcs6,       "SR6_",     GCS_MAVLINK_Parameters),
 #endif
 
@@ -598,7 +598,7 @@ const AP_Param::Info Sub::var_info[] = {
     // @Path: ../libraries/AP_Scheduler/AP_Scheduler.cpp
     GOBJECT(scheduler, "SCHED_", AP_Scheduler),
 
-#if AVOIDANCE_ENABLED == ENABLED
+#if AVOIDANCE_ENABLED
     // @Group: AVOID_
     // @Path: ../libraries/AC_Avoidance/AC_Avoid.cpp
     GOBJECT(avoid,      "AVOID_",   AC_Avoid),
@@ -614,7 +614,7 @@ const AP_Param::Info Sub::var_info[] = {
     // @Path: ../libraries/AP_Motors/AP_Motors6DOF.cpp,../libraries/AP_Motors/AP_MotorsMulticopter.cpp
     GOBJECT(motors, "MOT_",         AP_Motors6DOF),
 
-#if RCMAP_ENABLED == ENABLED
+#if RCMAP_ENABLED
     // @Group: RCMAP_
     // @Path: ../libraries/AP_RCMapper/AP_RCMapper.cpp
     GOBJECT(rcmap, "RCMAP_",        RCMapper),

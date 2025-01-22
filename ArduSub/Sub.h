@@ -67,8 +67,8 @@
 // Local modules
 #include "defines.h"
 #include "config.h"
-#include "GCS_Mavlink.h"
-#include "RC_Channel.h"         // RC Channel Library
+#include "GCS_MAVLink_Sub.h"
+#include "RC_Channel_Sub.h"         // RC Channel Library
 #include "Parameters.h"
 #include "AP_Arming_Sub.h"
 #include "GCS_Sub.h"
@@ -78,7 +78,7 @@
 #include <AP_OpticalFlow/AP_OpticalFlow.h>     // Optical Flow library
 
 // libraries which are dependent on #defines in defines.h and/or config.h
-#if RCMAP_ENABLED == ENABLED
+#if RCMAP_ENABLED
 #include <AP_RCMapper/AP_RCMapper.h>        // RC input mapping library
 #endif
 
@@ -88,7 +88,7 @@
 #include <AP_RPM/AP_RPM.h>
 #endif
 
-#if AVOIDANCE_ENABLED == ENABLED
+#if AVOIDANCE_ENABLED
 #include <AC_Avoidance/AC_Avoid.h>           // Stop at fence library
 #endif
 
@@ -145,15 +145,15 @@ private:
     AP_LeakDetector leak_detector;
 
     struct {
-        bool enabled:1;
-        bool alt_healthy:1; // true if we can trust the altitude from the rangefinder
-        int16_t alt_cm;     // tilt compensated altitude (in cm) from rangefinder
-        int16_t min_cm;     // min rangefinder distance (in cm)
-        int16_t max_cm;     // max rangefinder distance (in cm)
+        bool enabled;
+        bool alt_healthy; // true if we can trust the altitude from the rangefinder
+        float alt;     // tilt compensated altitude from rangefinder
+        float min;     // min rangefinder distance
+        float max;     // max rangefinder distance
         uint32_t last_healthy_ms;
         float inertial_alt_cm;                  // inertial alt at time of last rangefinder sample
         float rangefinder_terrain_offset_cm;    // terrain height above EKF origin
-        LowPassFilterFloat alt_cm_filt;         // altitude filter
+        LowPassFilterFloat alt_filt;         // altitude filter
     } rangefinder_state = { false, false, 0, 0, 0, 0, 0, 0 };
 
 #if AP_RPM_ENABLED
@@ -206,7 +206,7 @@ private:
 
     Mode::Number prev_control_mode;
 
-#if RCMAP_ENABLED == ENABLED
+#if RCMAP_ENABLED
     RCMapper rcmap;
 #endif
 
@@ -355,7 +355,7 @@ private:
     AP_Mount camera_mount;
 #endif
 
-#if AVOIDANCE_ENABLED == ENABLED
+#if AVOIDANCE_ENABLED
     AC_Avoid avoid;
 #endif
 
@@ -514,7 +514,7 @@ private:
     void do_loiter_unlimited(const AP_Mission::Mission_Command& cmd);
     void do_circle(const AP_Mission::Mission_Command& cmd);
     void do_loiter_time(const AP_Mission::Mission_Command& cmd);
-#if NAV_GUIDED == ENABLED
+#if NAV_GUIDED
     void do_nav_guided_enable(const AP_Mission::Mission_Command& cmd);
     void do_guided_limits(const AP_Mission::Mission_Command& cmd);
 #endif
@@ -531,12 +531,10 @@ private:
     bool verify_surface(const AP_Mission::Mission_Command& cmd);
     bool verify_RTL(void);
     bool verify_circle(const AP_Mission::Mission_Command& cmd);
-#if NAV_GUIDED == ENABLED
+#if NAV_GUIDED
     bool verify_nav_guided_enable(const AP_Mission::Mission_Command& cmd);
 #endif
     bool verify_nav_delay(const AP_Mission::Mission_Command& cmd);
-
-    void log_init(void);
 
     void failsafe_leak_check();
     void failsafe_internal_pressure_check();

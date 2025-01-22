@@ -96,3 +96,11 @@
 #endif
 
 #define HAL_SOLO_GIMBAL_ENABLED 1
+
+#ifndef HAL_OS_POSIX_IO
+#define HAL_OS_POSIX_IO 1
+#endif
+
+#ifndef HAL_INS_RATE_LOOP
+#define HAL_INS_RATE_LOOP 1
+#endif

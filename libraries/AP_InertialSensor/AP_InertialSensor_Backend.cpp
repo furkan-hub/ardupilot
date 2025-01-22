@@ -2,6 +2,7 @@
 
 #include <AP_HAL/AP_HAL.h>
 #include <AP_AHRS/AP_AHRS.h>
+#include "AP_InertialSensor_rate_config.h"
 #include "AP_InertialSensor.h"
 #include "AP_InertialSensor_Backend.h"
 #include <AP_Logger/AP_Logger.h>
@@ -52,6 +53,15 @@ void AP_InertialSensor_Backend::_set_accel_oversampling(uint8_t instance, uint8_
 void AP_InertialSensor_Backend::_set_gyro_oversampling(uint8_t instance, uint8_t n)
 {
     _imu._gyro_over_sampling[instance] = n;
+}
+
+/*
+  while sensors are converging to get the true sample rate we re-init the notch filters.
+  stop doing this if the user arms
+ */
+bool AP_InertialSensor_Backend::sensors_converging() const
+{
+    return AP_HAL::millis64() < HAL_INS_CONVERGANCE_MS && !hal.util->get_soft_armed();
 }
 
 /*
@@ -254,9 +264,21 @@ void AP_InertialSensor_Backend::apply_gyro_filters(const uint8_t instance, const
             notch.filter[instance].reset();
         }
 #endif
+        gyro_filtered = _imu._gyro_filtered[instance];
+    }
+
+#if AP_INERTIALSENSOR_FAST_SAMPLE_WINDOW_ENABLED
+    if (_imu.is_rate_loop_gyro_enabled(instance)) {
+        if (_imu.push_next_gyro_sample(gyro_filtered)) {
+            // if we used the value, record it for publication to the front-end
+            _imu._gyro_filtered[instance] = gyro_filtered;
+        }
     } else {
         _imu._gyro_filtered[instance] = gyro_filtered;
     }
+#else
+    _imu._gyro_filtered[instance] = gyro_filtered;
+#endif
 }
 
 void AP_InertialSensor_Backend::_notify_new_gyro_raw_sample(uint8_t instance,
@@ -772,6 +794,7 @@ void AP_InertialSensor_Backend::update_gyro(uint8_t instance) /* front end */
     if (has_been_killed(instance)) {
         return;
     }
+
     if (_imu._new_gyro_data[instance]) {
         _publish_gyro(instance, _imu._gyro_filtered[instance]);
 #if HAL_GYROFFT_ENABLED
@@ -781,6 +804,14 @@ void AP_InertialSensor_Backend::update_gyro(uint8_t instance) /* front end */
         _imu._new_gyro_data[instance] = false;
     }
 
+    update_gyro_filters(instance);
+}
+
+/*
+  propagate filter changes from front end to backend
+ */
+void AP_InertialSensor_Backend::update_gyro_filters(uint8_t instance) /* front end */
+{
     // possibly update filter frequency
     const float gyro_rate = _gyro_raw_sample_rate(instance);
 
@@ -815,7 +846,16 @@ void AP_InertialSensor_Backend::update_accel(uint8_t instance) /* front end */
         _publish_accel(instance, _imu._accel_filtered[instance]);
         _imu._new_accel_data[instance] = false;
     }
-    
+
+    update_accel_filters(instance);
+}
+
+
+/*
+  propagate filter changes from front end to backend
+ */
+void AP_InertialSensor_Backend::update_accel_filters(uint8_t instance) /* front end */
+{
     // possibly update filter frequency
     if (_last_accel_filter_hz != _accel_filter_cutoff()) {
         _imu._accel_filter[instance].set_cutoff_frequency(_accel_raw_sample_rate(instance), _accel_filter_cutoff());

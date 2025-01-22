@@ -2,7 +2,7 @@
 
 #include <AP_Common/AP_Common.h>
 
-#include "RC_Channel.h"
+#include "RC_Channel_Rover.h"
 #include <AC_Avoidance/AC_Avoid.h>
 #include "AC_Sprayer/AC_Sprayer.h"
 #include <AP_AIS/AP_AIS.h>
@@ -257,7 +257,7 @@ public:
     // Throttle
     //
     AP_Int8     throttle_cruise;
-    AP_Int8     pilot_steer_type;
+    AP_Enum<PilotSteerType>     pilot_steer_type;
 
     // failsafe control
     AP_Int8     fs_action;

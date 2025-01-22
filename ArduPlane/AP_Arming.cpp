@@ -321,6 +321,10 @@ bool AP_Arming_Plane::arm(const AP_Arming::Method method, const bool do_arming_c
     // rising edge of delay_arming oneshot
     delay_arming = true;
 
+#if MODE_AUTOLAND_ENABLED
+    plane.mode_autoland.arm_check();
+#endif
+
     send_arm_disarm_statustext("Throttle armed");
 
     return true;
@@ -378,8 +382,11 @@ bool AP_Arming_Plane::disarm(const AP_Arming::Method method, bool do_disarm_chec
     // DO_CHANGE_SPEED commands
     plane.new_airspeed_cm = -1;
 
+#if MODE_AUTOLAND_ENABLED
+    // takeoff direction always cleared on disarm
+    plane.takeoff_state.initial_direction.initialized = false;
+#endif
     send_arm_disarm_statustext("Throttle disarmed");
-
     return true;
 }
 
@@ -433,9 +440,15 @@ bool AP_Arming_Plane::mission_checks(bool report)
 {
     // base checks
     bool ret = AP_Arming::mission_checks(report);
-    if (plane.mission.contains_item(MAV_CMD_DO_LAND_START) && plane.g.rtl_autoland == RtlAutoland::RTL_DISABLE) {
-        ret = false;
-        check_failed(ARMING_CHECK_MISSION, report, "DO_LAND_START set and RTL_AUTOLAND disabled");
+    if (plane.g.rtl_autoland == RtlAutoland::RTL_DISABLE) {
+        if (plane.mission.contains_item(MAV_CMD_DO_LAND_START)) {
+            ret = false;
+            check_failed(ARMING_CHECK_MISSION, report, "DO_LAND_START set and RTL_AUTOLAND disabled");
+        }
+        if (plane.mission.contains_item(MAV_CMD_DO_RETURN_PATH_START)) {
+            ret = false;
+            check_failed(ARMING_CHECK_MISSION, report, "DO_RETURN_PATH_START set and RTL_AUTOLAND disabled");
+        }
     }
 #if HAL_QUADPLANE_ENABLED
     if (plane.quadplane.available()) {

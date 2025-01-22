@@ -6,6 +6,7 @@ from waflib.Configure import conf
 from waflib.Scripting import run_command
 from waflib.TaskGen import before_method, after_method, feature
 import os.path, os
+from pathlib import Path
 from collections import OrderedDict
 import subprocess
 
@@ -106,6 +107,7 @@ COMMON_VEHICLE_DEPENDENT_LIBRARIES = [
     'AP_EFI',
     'AP_Hott_Telem',
     'AP_ESC_Telem',
+    'AP_Servo_Telem',
     'AP_Stats',
     'AP_GyroFFT',
     'AP_RCTelemetry',
@@ -127,6 +129,7 @@ COMMON_VEHICLE_DEPENDENT_LIBRARIES = [
     'AP_Beacon',
     'AP_Arming',
     'AP_RCMapper',
+    'AP_MultiHeap',
 ]
 
 def get_legacy_defines(sketch_name, bld):
@@ -142,6 +145,24 @@ def get_legacy_defines(sketch_name, bld):
         'APM_BUILD_DIRECTORY=APM_BUILD_' + sketch_name,
         'AP_BUILD_TARGET_NAME="' + sketch_name + '"',
     ]
+
+def set_double_precision_flags(flags):
+    # set up flags for double precision files:
+    # * remove all single precision constant flags
+    # * set define to allow double precision math in AP headers
+
+    flags = flags[:] # copy the list to avoid affecting other builds
+
+    # remove GCC and clang single precision constant flags
+    for opt in ('-fsingle-precision-constant', '-cl-single-precision-constant'):
+        while True: # might have multiple copies from different sources
+            try:
+                flags.remove(opt)
+            except ValueError:
+                break
+    flags.append("-DALLOW_DOUBLE_MATH_FUNCTIONS")
+
+    return flags
 
 IGNORED_AP_LIBRARIES = [
     'doc',
@@ -261,6 +282,30 @@ def ap_common_vehicle_libraries(bld):
 
 _grouped_programs = {}
 
+
+class upload_fw_blueos(Task.Task):
+    def run(self):
+        # this is rarely used, so we import requests here to avoid the overhead
+        import requests
+        binary_path = self.inputs[0].abspath()
+        # check if .apj file exists for chibios builds
+        if Path(binary_path + ".apj").exists():
+            binary_path = binary_path + ".apj"
+        bld = self.generator.bld
+        board = bld.bldnode.name.capitalize()
+        print(f"Uploading {binary_path} to BlueOS at {bld.options.upload_blueos} for board {board}")
+        url = f'{bld.options.upload_blueos}/ardupilot-manager/v1.0/install_firmware_from_file?board_name={board}'
+        files = {
+          'binary': open(binary_path, 'rb')
+        }
+        response = requests.post(url, files=files, verify=False)
+        if response.status_code != 200:
+            raise Errors.WafError(f"Failed to upload firmware to BlueOS: {response.status_code}: {response.text}")
+        print("Upload complete")
+
+    def keyword(self):
+          return "Uploading to BlueOS"
+
 class check_elf_symbols(Task.Task):
     color='CYAN'
     always_run = True
@@ -309,7 +354,10 @@ def post_link(self):
 
     check_elf_task = self.create_task('check_elf_symbols', src=link_output)
     check_elf_task.set_run_after(self.link_task)
-    
+    if self.bld.options.upload_blueos and self.env["BOARD_CLASS"] == "LINUX":
+        _upload_task = self.create_task('upload_fw_blueos', src=link_output)
+        _upload_task.set_run_after(self.link_task)
+
 @conf
 def ap_program(bld,
                program_groups='bin',
@@ -446,14 +494,7 @@ def ap_find_tests(bld, use=[], DOUBLE_PRECISION_SOURCES=[]):
         )
         filename = os.path.basename(f.abspath())
         if filename in DOUBLE_PRECISION_SOURCES:
-            t.env.CXXFLAGS = t.env.CXXFLAGS[:]
-            single_precision_option='-fsingle-precision-constant'
-            if single_precision_option in t.env.CXXFLAGS:
-                t.env.CXXFLAGS.remove(single_precision_option)
-            single_precision_option='-cl-single-precision-constant'
-            if single_precision_option in t.env.CXXFLAGS:
-                t.env.CXXFLAGS.remove(single_precision_option)
-            t.env.CXXFLAGS.append("-DALLOW_DOUBLE_MATH_FUNCTIONS")
+            t.env.CXXFLAGS = set_double_precision_flags(t.env.CXXFLAGS)
 
 _versions = []
 
@@ -592,13 +633,14 @@ def _select_programs_from_group(bld):
         else:
             groups = ['bin']
 
+    possible_groups = list(_grouped_programs.keys())
+    possible_groups.remove('bin')       # Remove `bin` so as not to duplicate all items in bin
     if 'all' in groups:
-        groups = list(_grouped_programs.keys())
-        groups.remove('bin')       # Remove `bin` so as not to duplicate all items in bin
+        groups = possible_groups
 
     for group in groups:
         if group not in _grouped_programs:
-            bld.fatal('Group %s not found' % group)
+            bld.fatal(f'Group {group} not found, possible groups: {possible_groups}')
 
         target_names = _grouped_programs[group].keys()
 
@@ -639,6 +681,13 @@ arducopter and upload it to my board".
         dest='upload_port',
         default=None,
         help='''Specify the port to be used with the --upload option. For example a port of /dev/ttyS10 indicates that serial port 10 shuld be used.
+''')
+
+    g.add_option('--upload-blueos',
+        action='store',
+        dest='upload_blueos',
+        default=None,
+        help='''Automatically upload to a BlueOS device. The argument is the url for the device. http://blueos.local for example.
 ''')
 
     g.add_option('--upload-force',

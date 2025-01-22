@@ -40,9 +40,7 @@
 #include <AP_InternalError/AP_InternalError.h>
 #include <AP_Vehicle/AP_Vehicle_Type.h>
 #include <AP_Common/ExpandingString.h>
-#ifndef HAL_NO_UARTDRIVER
 #include <GCS_MAVLink/GCS.h>
-#endif
 
 #if AP_SIM_ENABLED
 #include <AP_HAL/SIMState.h>
@@ -553,19 +551,19 @@ void RCOutput::set_dshot_rate(uint8_t dshot_rate, uint16_t loop_rate_hz)
     }
 
     uint16_t drate = dshot_rate * loop_rate_hz;
-    _dshot_rate = dshot_rate;
     // BLHeli32 uses a 16 bit counter for input calibration which at 48Mhz will wrap
     // at 732Hz so never allow rates below 800hz
     while (drate < 800) {
-        _dshot_rate++;
-        drate = _dshot_rate * loop_rate_hz;
+        dshot_rate++;
+        drate = dshot_rate * loop_rate_hz;
     }
-    // prevent stupidly high rates, ideally should also prevent high rates
+    // prevent stupidly high rate multiples, ideally should also prevent high rates
     // with slower dshot variants
-    if (drate > 4000) {
-        _dshot_rate = 4000 / loop_rate_hz;
-        drate = _dshot_rate * loop_rate_hz;
+    while (dshot_rate > 1 && drate > MAX(4096, loop_rate_hz)) {
+        dshot_rate--;
+        drate = dshot_rate * loop_rate_hz;
     }
+    _dshot_rate = dshot_rate;
     _dshot_period_us = 1000000UL / drate;
 #if HAL_WITH_IO_MCU
     if (iomcu_dshot) {
@@ -650,6 +648,11 @@ uint32_t RCOutput::get_disabled_channels(uint32_t digital_mask)
     }
 
     disabled_chan_mask <<= chan_offset;
+#if HAL_WITH_IO_MCU
+    if (iomcu_dshot) {
+       disabled_chan_mask |= iomcu.get_disabled_channels(digital_mask);
+    }
+#endif
     return disabled_chan_mask;
 }
 
@@ -898,7 +901,7 @@ bool RCOutput::mode_requires_dma(enum output_mode mode) const
 
 void RCOutput::print_group_setup_error(pwm_group &group, const char* error_string)
 {
-#ifndef HAL_NO_UARTDRIVER
+#if AP_HAVE_GCS_SEND_TEXT
     uint8_t min_chan = UINT8_MAX;
     uint8_t max_chan = 0;
     for (uint8_t j = 0; j < 4; j++) {
@@ -916,7 +919,7 @@ void RCOutput::print_group_setup_error(pwm_group &group, const char* error_strin
     } else {
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Chan %i to %i, %s: %s",min_chan+1,max_chan+1,get_output_mode_string(group.current_mode),error_string);
     }
-#endif
+#endif  // AP_HAVE_GCS_SEND_TEXT
 }
 
 /*
@@ -1337,6 +1340,9 @@ void RCOutput::cork(void)
  */
 void RCOutput::push(void)
 {
+    if (!corked) {
+        INTERNAL_ERROR(AP_InternalError::error_t::flow_of_control);
+    }
     corked = false;
     push_local();
 #if HAL_WITH_IO_MCU
@@ -1393,7 +1399,11 @@ void RCOutput::trigger_groups()
     osalSysUnlock();
 #if !defined(HAL_NO_RCOUT_THREAD) || HAL_DSHOT_ENABLED
     // trigger a PWM send
-    if (!in_soft_serial() && hal.scheduler->in_main_thread() && rcout_thread_ctx) {
+    if (!in_soft_serial() &&
+        // we always trigger an output if we are in the main thread
+        // we also always trigger an output if we are in the rate thread and thus
+        // force_trigger has been set
+        (hal.scheduler->in_main_thread() || force_trigger) && rcout_thread_ctx) {
         chEvtSignal(rcout_thread_ctx, EVT_PWM_SEND);
     }
 #endif
@@ -1463,9 +1473,9 @@ void RCOutput::dshot_send_groups(rcout_timer_t cycle_start_us, rcout_timer_t tim
     }
 
     for (auto &group : pwm_group_list) {
-        bool pulse_sent;
+        bool pulse_sent = false;
         // send a dshot command
-        if (is_dshot_protocol(group.current_mode)
+        if (group.can_send_dshot_pulse()
             && dshot_command_is_active(group)) {
             command_sent = dshot_send_command(group, _dshot_current_command.command, _dshot_current_command.chan);
             pulse_sent = true;
@@ -1637,9 +1647,8 @@ void RCOutput::dshot_send(pwm_group &group, rcout_timer_t cycle_start_us, rcout_
     bdshot_prepare_for_next_pulse(group);
 #endif
     bool safety_on = hal.util->safety_switch_state() == AP_HAL::Util::SAFETY_DISARMED;
-#if !defined(IOMCU_FW)
     bool armed = hal.util->get_soft_armed();
-#endif
+
     memset((uint8_t *)group.dma_buffer, 0, DSHOT_BUFFER_LENGTH);
 
     for (uint8_t i=0; i<4; i++) {
@@ -1650,7 +1659,9 @@ void RCOutput::dshot_send(pwm_group &group, rcout_timer_t cycle_start_us, rcout_
                 bdshot_decode_telemetry_from_erpm(group.bdshot.erpm[i], chan);
             }
 #endif
-            if (safety_on && !(safety_mask & (1U<<(chan+chan_offset)))) {
+            const uint32_t servo_chan_mask = 1U<<(chan+chan_offset);
+
+            if (safety_on && !(safety_mask & servo_chan_mask)) {
                 // safety is on, don't output anything
                 continue;
             }
@@ -1662,12 +1673,10 @@ void RCOutput::dshot_send(pwm_group &group, rcout_timer_t cycle_start_us, rcout_
                 continue;
             }
 
-            const uint32_t chan_mask = (1U<<chan);
-
             pwm = constrain_int16(pwm, 1000, 2000);
             uint16_t value = MIN(2 * (pwm - 1000), 1999);
 
-            if ((chan_mask & _reversible_mask) != 0) {
+            if ((servo_chan_mask & _reversible_mask) != 0) {
                 // this is a DShot-3D output, map so that 1500 PWM is zero throttle reversed
                 if (value < 1000) {
                     value = 1999 - value;
@@ -1683,13 +1692,14 @@ void RCOutput::dshot_send(pwm_group &group, rcout_timer_t cycle_start_us, rcout_
             if (value != 0) {
                 value += DSHOT_ZERO_THROTTLE;
             }
-#if !defined(IOMCU_FW)
+
             if (!armed) {
                 // when disarmed we always send a zero value
                 value = 0;
             }
-#endif
+
             // according to sskaug requesting telemetry while trying to arm may interfere with the good frame calc
+            const uint32_t chan_mask = (1U<<chan);
             bool request_telemetry = telem_request_mask & chan_mask;
             uint16_t packet = create_dshot_packet(value, request_telemetry,
 #ifdef HAL_WITH_BIDIR_DSHOT
@@ -2295,7 +2305,7 @@ void RCOutput::safety_update(void)
     bool safety_pressed = palReadLine(HAL_GPIO_PIN_SAFETY_IN);
     if (safety_pressed) {
         AP_BoardConfig *brdconfig = AP_BoardConfig::get_singleton();
-        if (safety_press_count < 255) {
+        if (safety_press_count < UINT8_MAX) {
             safety_press_count++;
         }
         if (brdconfig && brdconfig->safety_button_handle_pressed(safety_press_count)) {
