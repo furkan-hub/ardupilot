@@ -34,7 +34,7 @@ typedef Matrix3<float> Matrix3F;
 typedef Quaternion QuaternionF;
 #endif
 
-// define AP_Param types AP_Vector3f and Ap_Matrix3f
+// define AP_Param type AP_Vector3f
 AP_PARAMDEFV(Vector3f, Vector3f, AP_PARAM_VECTOR3F);
 
 /*
@@ -396,3 +396,9 @@ float int32_to_float_le(const uint32_t& value) WARN_IF_UNUSED;
   Convert from uint64_t to double without breaking Wstrict-aliasing due to type punning
 */
 double uint64_to_double_le(const uint64_t& value) WARN_IF_UNUSED;
+
+/*
+  get a twos-complement value from the first 'length' bits of a uint32_t
+  With thanks to betaflight
+ */
+int32_t get_twos_complement(uint32_t raw, uint8_t length) WARN_IF_UNUSED;

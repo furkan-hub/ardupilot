@@ -9,7 +9,7 @@ USB_STRING_MANUFACTURER "Hex/ProfiCNC"
 # crystal frequency
 OSCILLATOR_HZ 24000000
 
-# board ID for firmware load
+# board ID. See Tools/AP_Bootloader/board_types.txt
 APJ_BOARD_ID 140
 
 FLASH_SIZE_KB 2048
@@ -17,8 +17,6 @@ FLASH_SIZE_KB 2048
 # supports upto 8MBits/s
 CANFD_SUPPORTED 8
 
-# with 2M flash we can afford to optimize for speed
-env OPTIMIZE -O2
 
 FLASH_RESERVE_START_KB 128
 

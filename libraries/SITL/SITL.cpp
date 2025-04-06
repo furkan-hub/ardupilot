@@ -299,7 +299,7 @@ const AP_Param::GroupInfo SIM::var_info2[] = {
     // @DisplayName: Wind Profile Type
     // @Description: Selects how wind varies from surface to WIND_T_ALT
     // @Values: 0:square law,1: none, 2:linear-see WIND_T_COEF
-    // @User: Advanced    
+    // @User: Advanced
     AP_GROUPINFO("WIND_T"      ,15, SIM,  wind_type, SIM::WIND_TYPE_SQRT),
     // @Param: WIND_T_ALT
     // @DisplayName: Full Wind Altitude
@@ -335,6 +335,7 @@ const AP_Param::GroupInfo SIM::var_info2[] = {
     // vibration frequencies on each axis
     AP_GROUPINFO("VIB_FREQ",   26, SIM,  vibe_freq, 0),
 
+    // @Group: PARA_
     // @Path: ./SIM_Parachute.cpp
     AP_SUBGROUPINFO(parachute_sim, "PARA_", 27, SIM, Parachute),
 
@@ -400,6 +401,12 @@ const AP_Param::GroupInfo SIM::var_info2[] = {
     // @Description: Ground behavior of aircraft (tailsitter, no movement, forward only)
     AP_GROUPINFO("GND_BEHAV",   41, SIM,  gnd_behav, -1),
 
+    // @Param: IMU_ORIENT
+    // @CopyFieldsFrom: AHRS_ORIENTATION
+    // @DisplayName: IMU orientation
+    // @Description: Simulated orientation of the IMUs
+    AP_GROUPINFO("IMU_ORIENT",   42, SIM,  imu_orientation, 0),
+    
     // sailboat wave and tide simulation parameters
 
     // @Param: WAVE_ENABLE
@@ -468,6 +475,7 @@ const AP_Param::GroupInfo SIM::var_info2[] = {
     // @Path: ./SIM_Buzzer.cpp
     AP_SUBGROUPINFO(buzzer_sim, "BZ_", 56, SIM, Buzzer),
 
+    // @Group: TA_
     // @Path: ./SIM_ToneAlarm.cpp
     AP_SUBGROUPINFO(tonealarm_sim, "TA_", 57, SIM, ToneAlarm),
 
@@ -628,12 +636,15 @@ const AP_Param::GroupInfo SIM::var_info3[] = {
     // @Description: Number of simulated IMUs to create
     AP_GROUPINFO("IMU_COUNT",    23, SIM,  imu_count,  2),
 
+    // @Group: FTOWESC_
     // @Path: ./SIM_FETtecOneWireESC.cpp
     AP_SUBGROUPINFO(fetteconewireesc_sim, "FTOWESC_", 30, SIM, FETtecOneWireESC),
 
+    // @Group: RICH_
     // @Path: ./SIM_RichenPower.cpp
     AP_SUBGROUPINFO(richenpower_sim, "RICH_", 31, SIM, RichenPower),
 
+    // @Group: IE24_
     // @Path: ./SIM_IntelligentEnergy24.cpp
     AP_SUBGROUPINFO(ie24_sim, "IE24_", 32, SIM, IntelligentEnergy24),
 
@@ -1119,6 +1130,11 @@ const AP_Param::GroupInfo SIM::var_ins[] = {
     // @Vector3Parameter: 1
     AP_GROUPINFO("ACC3_SCAL",    24, SIM, accel_scale[2], 0),
 #endif
+    // @Param: ACC_TRIM
+    // @DisplayName: Accelerometer trim
+    // @Description: Trim applied to simulated accelerometer
+    // @User: Advanced
+    // @Vector3Parameter: 1
     AP_GROUPINFO("ACC_TRIM",     25, SIM, accel_trim, 0),
 
 #if APM_BUILD_TYPE(APM_BUILD_Rover)

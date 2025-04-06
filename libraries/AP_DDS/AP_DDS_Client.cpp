@@ -154,8 +154,8 @@ const AP_Param::GroupInfo AP_DDS_Client::var_info[] {
 
     // @Param: _MAX_RETRY
     // @DisplayName: DDS ping max attempts
-    // @Description: The maximum number of times the DDS client will attempt to ping the XRCE agent before exiting.
-    // @Range: 1 100
+    // @Description: The maximum number of times the DDS client will attempt to ping the XRCE agent before exiting. Set to 0 to allow unlimited retries.
+    // @Range: 0 100
     // @RebootRequired: True
     // @Increment: 1
     // @User: Standard
@@ -209,7 +209,6 @@ bool AP_DDS_Client::update_topic(sensor_msgs_msg_NavSatFix& msg, const uint8_t i
 
     auto &gps = AP::gps();
     WITH_SEMAPHORE(gps.get_semaphore());
-
     if (!gps.is_healthy(instance)) {
         msg.status.status = -1; // STATUS_NO_FIX
         msg.status.service = 0; // No services supported
@@ -219,12 +218,11 @@ bool AP_DDS_Client::update_topic(sensor_msgs_msg_NavSatFix& msg, const uint8_t i
 
     // No update is needed
     const auto last_fix_time_ms = gps.last_fix_time_ms(instance);
-    if (last_nav_sat_fix_time_ms == last_fix_time_ms) {
+    if (last_nav_sat_fix_time_ms[instance] == last_fix_time_ms) {
         return false;
     } else {
-        last_nav_sat_fix_time_ms = last_fix_time_ms;
+        last_nav_sat_fix_time_ms[instance] = last_fix_time_ms;
     }
-
 
     update_topic(msg.header.stamp);
     static_assert(GPS_MAX_RECEIVERS <= 9, "GPS_MAX_RECEIVERS is greater than 9");
@@ -1180,6 +1178,7 @@ void AP_DDS_Client::on_request(uxrSession* uxr_session, uxrObjectId object_id, u
  */
 void AP_DDS_Client::main_loop(void)
 {
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "%s initializing...", msg_prefix);
     if (!init_transport()) {
         return;
     }
@@ -1192,9 +1191,16 @@ void AP_DDS_Client::main_loop(void)
         }
 
         // check ping
-        if (!uxr_ping_agent_attempts(comm, ping_timeout_ms, ping_max_retry)) {
-            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "%s No ping response, exiting", msg_prefix);
-            return;
+        if (ping_max_retry == 0) {
+            if (!uxr_ping_agent(comm, ping_timeout_ms)) {
+                GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "%s No ping response, retrying", msg_prefix);
+                continue;
+            }
+        } else {
+            if (!uxr_ping_agent_attempts(comm, ping_timeout_ms, ping_max_retry)) {
+                GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "%s No ping response, exiting", msg_prefix);
+                continue;
+            }
         }
 
         // create session
@@ -1674,9 +1680,10 @@ void AP_DDS_Client::update()
     }
 #endif // AP_DDS_TIME_PUB_ENABLED
 #if AP_DDS_NAVSATFIX_PUB_ENABLED
-    constexpr uint8_t gps_instance = 0;
-    if (update_topic(nav_sat_fix_topic, gps_instance)) {
-        write_nav_sat_fix_topic();
+    for (uint8_t gps_instance = 0; gps_instance < GPS_MAX_INSTANCES; gps_instance++) {
+        if (update_topic(nav_sat_fix_topic, gps_instance)) {
+            write_nav_sat_fix_topic();
+        }
     }
 #endif // AP_DDS_NAVSATFIX_PUB_ENABLED
 #if AP_DDS_BATTERY_STATE_PUB_ENABLED
@@ -1760,7 +1767,7 @@ void AP_DDS_Client::update()
     status_ok = uxr_run_session_time(&session, 1);
 }
 
-#if CONFIG_HAL_BOARD != HAL_BOARD_SITL && CONFIG_HAL_BOARD != HAL_BOARD_ESP32
+#if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
 extern "C" {
     int clock_gettime(clockid_t clockid, struct timespec *ts);
 }
@@ -1777,6 +1784,6 @@ int clock_gettime(clockid_t clockid, struct timespec *ts)
     ts->tv_nsec = (utc_usec % 1000000ULL) * 1000UL;
     return 0;
 }
-#endif // CONFIG_HAL_BOARD != HAL_BOARD_SITL && CONFIG_HAL_BOARD != HAL_BOARD_ESP32
+#endif // CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
 
 #endif // AP_DDS_ENABLED

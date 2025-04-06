@@ -121,7 +121,6 @@ const AP_Scheduler::Task Rover::scheduler_tasks[] = {
 #if HAL_SPRAYER_ENABLED
     SCHED_TASK_CLASS(AC_Sprayer,          &rover.g2.sprayer,       update,          3,  90,  99),
 #endif
-    SCHED_TASK(compass_save,            0.1,  200, 105),
 #if HAL_LOGGING_ENABLED
     SCHED_TASK_CLASS(AP_Logger,           &rover.logger,           periodic_tasks, 50,  300, 108),
 #endif
@@ -349,7 +348,7 @@ void Rover::gcs_failsafe_check(void)
         return;
     }
 
-    const uint32_t gcs_last_seen_ms = gcs().sysid_myggcs_last_seen_time_ms();
+    const uint32_t gcs_last_seen_ms = gcs().sysid_mygcs_last_seen_time_ms();
     if (gcs_last_seen_ms == 0) {
         // we've never seen the GCS, so we never failsafe for not seeing it
         return;

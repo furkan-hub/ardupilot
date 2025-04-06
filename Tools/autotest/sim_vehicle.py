@@ -9,7 +9,6 @@ based on sim_vehicle.sh by Andrew Tridgell, October 2011
 AP_FLAKE8_CLEAN
 
 """
-from __future__ import print_function
 
 import atexit
 import datetime
@@ -609,7 +608,6 @@ def run_cmd_blocking(what, cmd, quiet=False, check=False, **kw):
 def run_in_terminal_window(name, cmd, **kw):
 
     """Execute the run_in_terminal_window.sh command for cmd"""
-    global windowID
     runme = [os.path.join(autotest_dir, "run_in_terminal_window.sh"), name]
     runme.extend(cmd)
     progress_cmd("Run " + name, runme)
@@ -872,6 +870,11 @@ def start_mavproxy(opts, stuff):
     else:
         cmd.append("mavproxy.py")
 
+    if opts.valgrind:
+        cmd.extend(['--retries', '10'])
+    else:
+        cmd.extend(['--retries', '5'])
+
     if opts.mcast:
         cmd.extend(["--master", "mcast:"])
 
@@ -904,7 +907,6 @@ def start_mavproxy(opts, stuff):
 
     if opts.tracker:
         cmd.extend(["--load-module", "tracker"])
-        global tracker_serial0
         # tracker_serial0 is set when we start the tracker...
         extra_cmd += ("module load map;"
                       "tracker set port %s; "

@@ -113,14 +113,14 @@ logger = {}
 ---@param format string -- type format string, see https://github.com/ArduPilot/ardupilot/blob/master/libraries/AP_Logger/README.md
 ---@param units string -- units string
 ---@param multipliers string -- multipliers string
----@param ... integer|number|uint32_t_ud|string -- data to be logged, type to match format string
+---@param ... integer|number|uint32_t_ud|string|boolean -- data to be logged, type to match format string
 function logger:write(name, labels, format, units, multipliers, ...) end
 
 -- write value to data flash log with given types and names, timestamp will be automatically added
 ---@param name string -- up to 4 characters
 ---@param labels string -- comma separated value labels, up to 58 characters
 ---@param format string -- type format string, see https://github.com/ArduPilot/ardupilot/blob/master/libraries/AP_Logger/README.md
----@param ... integer|number|uint32_t_ud|string -- data to be logged, type to match format string
+---@param ... integer|number|uint32_t_ud|string|boolean -- data to be logged, type to match format string
 function logger:write(name, labels, format, ...) end
 
 -- log a files content to onboard log
@@ -3791,7 +3791,7 @@ AR_AttitudeControl = {}
 
 -- return attitude controller slew rates for rovers
 ---@return number -- steering slew rate
----@return number -- spees slew rate
+---@return number -- speed slew rate
 function AR_AttitudeControl:get_srate() end
 
 -- copter position controller
@@ -3817,13 +3817,6 @@ function poscontrol:get_vel_target() end
 -- get position controller's target acceleration in m/s/s in NED frame
 ---@return Vector3f_ud|nil
 function poscontrol:get_accel_target() end
-
--- desc
-AR_PosControl = {}
-
--- return position controller slew rates for rovers
----@return number -- velocity slew rate
-function AR_PosControl:get_srate() end
 
 -- precision landing access
 precland = {}
@@ -3892,13 +3885,13 @@ function dirlist(directoryname) end
 ---@return integer -- error number
 function remove(filename) end
 
--- desc
+-- MAVLink message interface can send and receive binary messages
 mavlink = {}
 
--- initializes mavlink
----@param num_rx_msgid uint32_t_ud|integer|number
----@param msg_queue_length uint32_t_ud|integer|number
-function mavlink:init(num_rx_msgid, msg_queue_length) end
+-- Initializes scripting MAVLink bufffer, check for items in the buffer with `receive_chan`
+---@param msg_queue_length uint32_t_ud|integer|number -- Larger que allows script to deal with bursts of incomming messages or check for received messages less often
+---@param num_rx_msgid uint32_t_ud|integer|number -- Number of unique messages to be received, register ids with `register_rx_msgid`
+function mavlink:init(msg_queue_length, num_rx_msgid) end
 
 -- marks mavlink message for receive, message id can be get using mavlink_msgs.get_msgid("MSG_NAME")
 ---@param msg_id number
@@ -4101,3 +4094,15 @@ function AP_Servo_Telem_Data_ud:measured_position() end
 -- get commanded position
 ---@return number|nil -- comanded position in degrees or nil if not available
 function AP_Servo_Telem_Data_ud:command_position() end
+
+-- simulator specific bindings
+sim = {}
+
+-- set pose of simulated vehicle. Requires AHRS_EKF_TYPE=10
+---@param instance integer -- 0 for first vehicle
+---@param loc Location_ud
+---@param orient Quaternion_ud
+---@param velocity_bf Vector3f_ud -- body frame velocity
+---@param gyro_rads Vector3f_ud -- gyro body rate in rad/s
+---@return boolean
+function sim:set_pose(instance, loc, orient, velocity_bf, gyro_rads) end

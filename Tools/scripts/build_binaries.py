@@ -8,8 +8,6 @@ based on build_binaries.sh by Andrew Tridgell, March 2013
 AP_FLAKE8_CLEAN
 """
 
-from __future__ import print_function
-
 import datetime
 import optparse
 import os
@@ -767,7 +765,7 @@ if __name__ == '__main__':
     tags = cmd_opts.tags
     if len(tags) == 0:
         # FIXME: wedge this defaulting into parser somehow
-        tags = ["stable", "beta-4.3", "beta", "latest"]
+        tags = ["stable", "beta", "latest"]
 
     bb = build_binaries(tags)
     bb.run()

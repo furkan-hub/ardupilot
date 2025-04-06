@@ -8,7 +8,7 @@ MAV_TYPE GCS_Sub::frame_type() const
     return MAV_TYPE_SUBMARINE;
 }
 
-MAV_MODE GCS_MAVLINK_Sub::base_mode() const
+uint8_t GCS_MAVLINK_Sub::base_mode() const
 {
     uint8_t _base_mode = MAV_MODE_FLAG_STABILIZE_ENABLED;
 
@@ -45,7 +45,7 @@ MAV_MODE GCS_MAVLINK_Sub::base_mode() const
     // indicate we have set a custom mode
     _base_mode |= MAV_MODE_FLAG_CUSTOM_MODE_ENABLED;
 
-    return (MAV_MODE)_base_mode;
+    return _base_mode;
 }
 
 uint32_t GCS_Sub::custom_mode() const
@@ -674,7 +674,7 @@ void GCS_MAVLINK_Sub::handle_message(const mavlink_message_t &msg)
         sub.failsafe.last_pilot_input_ms = AP_HAL::millis();
         // a RC override message is considered to be a 'heartbeat'
         // from the ground station for failsafe purposes
-        gcs().sysid_myggcs_seen(AP_HAL::millis());
+        gcs().sysid_mygcs_seen(AP_HAL::millis());
         break;
     }
 
